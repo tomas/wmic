@@ -68,7 +68,7 @@ var parse_list = function(data){
       obj[kv[0]] = kv[1];
     })
 
-    if (Object.keys(obj).length > 0) 
+    if (Object.keys(obj).length > 0)
       list.push(obj);
   })
 
@@ -84,7 +84,8 @@ var parse_values = function(out){
                });
 
   data[0].forEach(function(k, i) {
-    obj[k] = data[1][i];
+    if (data[1] && data[1][i])
+      obj[k] = data[1][i];
   })
 
   return obj;

@@ -1,6 +1,6 @@
 {
   "name": "wmic",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Wrapper around the WMIC Windows command interface.",
   "main": "index.js",
   "scripts": {
@@ -11,9 +11,5 @@
   },
   "author": "",
   "license": "ISC",
-  "readme": "ERROR: No README data found!",
-  "_id": "wmic@0.0.2",
-  "_shasum": "82e77d8ea562e72c2748e8b1aa4ebd42d4ceeb36",
-  "_from": "wmic@*",
-  "_resolved": "https://registry.npmjs.org/wmic/-/wmic-0.0.2.tgz"
+  "readme": "ERROR: No README data found!"
 }
