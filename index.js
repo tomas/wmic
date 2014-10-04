@@ -158,9 +158,10 @@ exports.get_value = function(section, value, condition, cb){
   run(cmd, function(err, out){
     if (err) return cb(err);
 
-    var str = out.match(/=(.*)/)[1];
+    var str = out.match(/=(.*)/);
+
     if (str)
-      cb(null, str.trim());
+      cb(null, str[1].trim());
     else
       cb(new Error("Wmic: Couldn't get " + value + " in " + section));
   })
