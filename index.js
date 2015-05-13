@@ -99,13 +99,6 @@ var parse_values = function(out){
   return arr;
 }
 
-function returnOne(data){
-  data[0].forEach(function(k, i) {
-    if (data[1] && data[1][i])
-      obj[k] = data[1][i];
-  })
-}
-
 /**
  * Run the wmic command provided.
  *
