@@ -77,18 +77,33 @@ var parse_list = function(data){
 
 var parse_values = function(out){
 
-  var obj = {};
+  var arr = [];
   var data = out.toString().trim().split('\n')
                .map(function(line){
                  return line.trim().split(/\s+/);
                });
 
+  var keys = data[0];
+  data.forEach(function(k, i){
+    if(k != keys){
+      var obj = {};
+
+      k.forEach(function(l, j){
+        obj[keys[j]] = l
+      })
+
+      arr.push(obj);
+    }
+  });
+
+  return arr;
+}
+
+function returnOne(data){
   data[0].forEach(function(k, i) {
     if (data[1] && data[1][i])
       obj[k] = data[1][i];
   })
-
-  return obj;
 }
 
 /**
