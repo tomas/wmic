@@ -77,18 +77,58 @@ var parse_list = function(data){
 
 var parse_values = function(out){
 
-  var obj = {};
-  var data = out.toString().trim().split('\n')
-               .map(function(line){
-                 return line.trim().split(/\s+/);
-               });
+  var arr = [];
+  var data = buildDataArray(out);
 
-  data[0].forEach(function(k, i) {
-    if (data[1] && data[1][i])
-      obj[k] = data[1][i];
+  var keys = data[0];
+  data.forEach(function(k, i){
+    if(k != keys){
+      var obj = {};
+
+      k.forEach(function(l, j){
+        obj[keys[j]] = l
+      })
+
+      arr.push(obj);
+    }
+  });
+
+  return arr;
+}
+
+function buildDataArray(rawInput){
+  var lines = rawInput.toString().trim().split('\n');
+  var data = [];
+  var keys = [];
+
+  var linePattern = /(\S*?\s\s+)/g;
+  var match;
+
+  while ((match = linePattern.exec(lines[0])) !== null) {
+    if (match.index === linePattern.lastIndex) {
+        linePattern.lastIndex++;
+    }
+
+    var key = {};
+
+    key.string = match[0].trim();
+    key.startPoint = lines[0].indexOf(key.string);
+    key.keyLength = match[0].length;
+
+    keys.push(key);
+  }
+
+  lines.forEach(function(line, index){
+    var lineData = [];
+
+    keys.forEach(function(key, jndex){
+      lineData.push(line.substr(key.startPoint, key.keyLength).trim());
+    })
+
+    data.push(lineData);
   })
 
-  return obj;
+  return data;
 }
 
 /**
