@@ -17,7 +17,7 @@ Wrapper around the Windows WMIC interface for Node.js.
 
 Returns a single value from wmic, for example to get the hostname:
 
-    wmic.get_value('computersystem', 'name', null, function(err, value){
+    wmic.get_value('computersystem', 'name', null, function(err, value) {
       console.log(value) // Your Hostname
     })
 
@@ -25,7 +25,7 @@ Returns a single value from wmic, for example to get the hostname:
 
 Returns an array of values from wmic, for example to list hard drives:
 
-    wmic.get_values('logicaldisk', 'name, volumename', null, function(err, values){
+    wmic.get_values('logicaldisk', 'name, volumename', null, function(err, values) {
       console.dir(values) // An array of disks
     })
 

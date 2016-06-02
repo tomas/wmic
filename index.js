@@ -5,7 +5,7 @@
 */
 
 var spawn = require('child_process').spawn,
-    exec = require('child_process').exec,
+    exec  = require('child_process').exec,
     async = require('async'),
     fs    = require('fs'),
     iconv = require('iconv-lite');
@@ -15,7 +15,7 @@ var spawn = require('child_process').spawn,
  * split spaces within a string. So that 'P1 P2 "Other Param" P4' is split into 4 param strings
  * with param 3 = "Other Param" (not including quotes).
  **/
-var splitter = function(cmd) {
+function splitter(cmd) {
   cmd = cmd.trim();
 
   var acc = [], inString = false, cur = "", l = cmd.length;
@@ -49,21 +49,23 @@ var splitter = function(cmd) {
   }
 
   if (cur.length > 0) acc.push(cur);
-
   return acc;
 };
 
 
-var parse_list = function(data){
-
-  var blocks = data.split(/\n\n|\n,?\r/g)
-                   .filter(function(block) { return block.length > 2; });
+function parse_list(data){
 
   var list = [];
 
+  var blocks = data.split(/\n\n|\n,?\r/g).filter(function(block) {
+    return block.length > 2;
+  });
+
   blocks.forEach(function(block) {
-    var obj   = {},
-        lines = block.split(/\n+|\r+/).filter(function(line) { return line.indexOf('=') !== -1 });
+    var obj   = {};
+    var lines = block.split(/\n+|\r+/).filter(function(line) {
+      return line.indexOf('=') !== -1
+    });
 
     lines.forEach(function(line) {
       var kv = line.replace(/^,/, '').split("=");
@@ -77,12 +79,12 @@ var parse_list = function(data){
   return list;
 }
 
-var parse_values = function(out){
+function parse_values(out){
 
-  var arr = [];
-  var data = buildDataArray(out);
+  var arr  = [],
+      data = buildDataArray(out),
+      keys = data[0];
 
-  var keys = data[0];
   data.forEach(function(k, i){
     if(k != keys){
       var obj = {};
@@ -99,12 +101,11 @@ var parse_values = function(out){
 }
 
 function buildDataArray(rawInput){
-  var lines = rawInput.toString().trim().split('\n');
-  var data = [];
-  var keys = [];
-
-  var linePattern = /(\S*?\s\s+)/g;
-  var match;
+  var lines = rawInput.toString().trim().split('\n'),
+      data = [],
+      keys = [],
+      linePattern = /(\S*?\s\s+)/g,
+      match;
 
   while ((match = linePattern.exec(lines[0])) !== null) {
     if (match.index === linePattern.lastIndex) {
@@ -139,7 +140,7 @@ function buildDataArray(rawInput){
  * The resulting output string has an additional pid property added so, one may get the process
  * details. This seems the easiest way of doing so given the run is in a queue.
  **/
-var run = exports.run = function(cmd, cb) {
+exports.run = function run(cmd, cb) {
   queue.push(cmd, cb);
 };
 
