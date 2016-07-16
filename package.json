@@ -6,12 +6,23 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "tags": [
+    "windows",
+    "wmic",
+    "interface",
+    "api",
+    "wrapper"
+  ],
   "dependencies": {
     "async": "",
     "iconv-lite": "^0.4.13"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Tomás Pollak <tomas@forkhq.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tomas/wmic.git"
+  },
+  "license": "MIT",
   "devDependencies": {
     "mocha": "^2.2.4",
     "should": "^6.0.1"
