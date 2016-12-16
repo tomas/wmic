@@ -140,7 +140,7 @@ function buildDataArray(rawInput){
  * The resulting output string has an additional pid property added so, one may get the process
  * details. This seems the easiest way of doing so given the run is in a queue.
  **/
-exports.run = function run(cmd, cb) {
+var run = exports.run = function run(cmd, cb) {
   queue.push(cmd, cb);
 };
 
