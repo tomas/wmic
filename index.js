@@ -230,7 +230,7 @@ var queue = async.queue(function(cmd, cb) {
     }).join(',').replace(/^,/, '').replace(/,\s+$/, '').trim();
   }
 
-});
+}, 100);
 
 exports.get_value = function(section, value, condition, cb){
   var cond = condition ? ' where "' + condition + '" ' : '';
