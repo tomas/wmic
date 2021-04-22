@@ -167,7 +167,7 @@ var queue = async.queue(function(cmd, cb) {
               cb(err);
               return;
             }
-            var codePage = stdout.replace(/\D/g, '');
+            var codePage = stdout.replace(/\n.*$/, '').replace(/\D/g, '');
             consoleEncoding = codePage && codePage !== '65001' ? 'cp' + codePage : 'utf8';
             cb(null, consoleEncoding);
           });
