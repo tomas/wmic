@@ -35,7 +35,8 @@ describe('wmic', function() {
 
     it('should decode code page', function(done) {
         const test = (stdout, expected) => {
-            var codePage = stdout.replace(/\n.*$/, '').replace(/\D/g, '');
+            var codePage = wmic.get_encoding(stdout);
+            // console.log(`get_encoding: "${stdout.replace(/\r\n/g, '<cr><lf>')}" -> "${codePage}"`);
             codePage.should.equal(expected);
         }
         test('1234', '1234');
@@ -44,5 +45,14 @@ describe('wmic', function() {
         test('Who knows which page is active right now', '');
         done();
     });
+
+    it('should work', function(done) {
+        wmic.get_value('os', 'OSLanguage', null, (err, value) => {
+            should.not.exist(err);
+            value.length.should.not.be.equal(0);
+            done();
+        });
+    });
+
   })
 })
