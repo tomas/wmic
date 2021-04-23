@@ -134,6 +134,13 @@ function buildDataArray(rawInput){
   return data;
 }
 
+function get_encoding(stdout) {
+    var codePage = stdout.replace(/\n.*$/, '').replace(/\D/g, '');
+    return codePage;
+}
+
+exports.get_encoding = get_encoding;
+
 /**
  * Run the wmic command provided.
  *
@@ -167,7 +174,7 @@ var queue = async.queue(function(cmd, cb) {
               cb(err);
               return;
             }
-            var codePage = stdout.replace(/\D/g, '');
+            var codePage = get_encoding(stdout);
             consoleEncoding = codePage && codePage !== '65001' ? 'cp' + codePage : 'utf8';
             cb(null, consoleEncoding);
           });
