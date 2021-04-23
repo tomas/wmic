@@ -3,7 +3,7 @@
 /*
   wmic calls must always be serialised in windows, hence the use of async.queue
 */
-
+var MAX_WORKER_COUNT = 100;
 var spawn = require('child_process').spawn,
     exec  = require('child_process').exec,
     async = require('async'),
@@ -237,7 +237,7 @@ var queue = async.queue(function(cmd, cb) {
     }).join(',').replace(/^,/, '').replace(/,\s+$/, '').trim();
   }
 
-});
+}, MAX_WORKER_COUNT);
 
 exports.get_value = function(section, value, condition, cb){
   var cond = condition ? ' where "' + condition + '" ' : '';
