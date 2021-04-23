@@ -32,5 +32,17 @@ describe('wmic', function() {
         done()
       })
     })
+
+    it('should decode code page', function(done) {
+        const test = (stdout, expected) => {
+            var codePage = stdout.replace(/\n.*$/, '').replace(/\D/g, '');
+            codePage.should.equal(expected);
+        }
+        test('1234', '1234');
+        test('Active code page: 850', '850');
+        test("활占쏙옙 占쌘듸옙 占쏙옙占쏙옙占쏙옙: 949\r\n[0x7FFAF4317EA0] ANOMALY: meaningless REX prefix used", '949');
+        test('Who knows which page is active right now', '');
+        done();
+    });
   })
 })
