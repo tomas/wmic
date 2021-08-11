@@ -135,7 +135,7 @@ function buildDataArray(rawInput){
 }
 
 function get_encoding(stdout) {
-    var codePage = stdout.replace(/\n.*$/, '').replace(/\D/g, '');
+    var codePage = stdout.replace(/\n.*$/s, '').replace(/\D/g, '');
     return codePage;
 }
 
