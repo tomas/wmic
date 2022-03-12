@@ -4,7 +4,7 @@
   wmic calls must always be serialised in windows, hence the use of async.queue
 */
 var MAX_WORKER_COUNT = 100;
-var execFile = require('child_process').execfile,
+var execFile = require('child_process').execFile,
     exec  = require('child_process').exec,
     async = require('async'),
     fs    = require('fs'),
