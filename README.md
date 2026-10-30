@@ -42,11 +42,6 @@ Returns an array of values from wmic, for example to list hard drives:
       console.dir(values) // An array of disks
     })
 
-## CI / Security
-
-- CodeQL workflow: `.github/workflows/codeql.yml`
-- PowerShell static analysis workflow: `.github/workflows/powershell-analyzer.yml`
-
 ## Credits
 
 Written by Tomas Pollak, with the help of contributors.
