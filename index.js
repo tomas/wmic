@@ -172,18 +172,68 @@ var run = exports.run = function run(cmd, cb) {
 
 var SHELLS = ['pwsh', 'powershell'];
 var ALIASES = {
+  account: 'Win32_UserAccount',
+  baseboard: 'Win32_BaseBoard',
+  battery: 'Win32_Battery',
+  bios: 'Win32_BIOS',
+  bootconfig: 'Win32_BootConfiguration',
+  cdrom: 'Win32_CDROMDrive',
+  computer: 'Win32_ComputerSystem',
   computersystem: 'Win32_ComputerSystem',
+  cpu: 'Win32_Processor',
+  desktop: 'Win32_Desktop',
+  disk: 'Win32_LogicalDisk',
+  diskdrive: 'Win32_DiskDrive',
+  filesystem: 'Win32_FileSystem',
   logicaldisk: 'Win32_LogicalDisk',
+  memorychip: 'Win32_PhysicalMemory',
+  motherboard: 'Win32_BaseBoard',
   nic: 'Win32_NetworkAdapter',
   nicconfig: 'Win32_NetworkAdapterConfiguration',
-  os: 'Win32_OperatingSystem'
+  networkadapter: 'Win32_NetworkAdapter',
+  networkadapterconfiguration: 'Win32_NetworkAdapterConfiguration',
+  os: 'Win32_OperatingSystem',
+  partition: 'Win32_DiskPartition',
+  pagefile: 'Win32_PageFile',
+  physicalmemory: 'Win32_PhysicalMemory',
+  printer: 'Win32_Printer',
+  process: 'Win32_Process',
+  processor: 'Win32_Processor',
+  product: 'Win32_Product',
+  service: 'Win32_Service',
+  share: 'Win32_Share',
+  sounddevice: 'Win32_SoundDevice',
+  startup: 'Win32_StartupCommand',
+  useraccount: 'Win32_UserAccount',
+  videcontroller: 'Win32_VideoController',
+  videocontroller: 'Win32_VideoController',
+  volume: 'Win32_Volume'
 };
+
+function normalizeLegacyClassName(section) {
+  var name = String(section || '').trim();
+  if (!name) return '';
+
+  name = name.replace(/^.+[:\\/]/, '');
+  name = name.replace(/^win32_/i, '');
+  name = name.replace(/[^a-z0-9]+/gi, ' ');
+  name = name.replace(/\s+/g, ' ').trim();
+
+  if (!name) return '';
+  return 'Win32_' + name.split(' ').map(function(part) {
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }).join('_');
+}
 
 // Translate common WMIC aliases to CIM class names while still accepting explicit Win32_* names.
 function resolveClassName(section) {
   if (!section) return '';
   if (/^win32_/i.test(section)) return section;
-  return ALIASES[section.toLowerCase()] || section;
+
+  var normalized = String(section).trim().toLowerCase();
+  if (ALIASES[normalized]) return ALIASES[normalized];
+
+  return normalizeLegacyClassName(section);
 }
 
 function parseCommandSpec(cmd) {
@@ -210,18 +260,43 @@ function parseCommandSpec(cmd) {
     };
   }
 
-  if (action !== 'get') throw new Error('Unsupported command');
+  if (action !== 'get') {
+    if (/^(?:all|full|brief|\*)$/.test(action)) {
+      return {
+        type: 'list',
+        section: resolveClassName(section),
+        condition: condition
+      };
+    }
+    throw new Error('Unsupported command');
+  }
 
   var valueMode = false;
-  var fields = args.filter(function(arg) {
+  var rawFields = args.filter(function(arg) {
     var isValueSwitch = arg.toLowerCase() === '/value';
     valueMode = valueMode || isValueSwitch;
     return !isValueSwitch;
-  }).join(' ').split(',').map(function(field) {
+  }).join(' ').trim();
+
+  if (!rawFields || /^\/?(?:all|full|brief|\*)$/i.test(rawFields)) {
+    return {
+      type: 'list',
+      section: resolveClassName(section),
+      condition: condition
+    };
+  }
+
+  var fields = rawFields.split(/[\s,]+/).map(function(field) {
     return field.trim();
   }).filter(Boolean);
 
-  if (!fields.length) throw new Error('Missing fields');
+  if (!fields.length) {
+    return {
+      type: 'list',
+      section: resolveClassName(section),
+      condition: condition
+    };
+  }
 
   return {
     type: valueMode ? 'value' : 'table',

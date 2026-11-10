@@ -141,6 +141,88 @@ describe('wmic', function() {
       }, done);
     });
 
+    it('accepts legacy all-field get commands without explicit field names', function(done) {
+      var calls = [];
+      withWmic(function(command, args) {
+        calls.push({ command: command, args: args });
+        return makeChild({ stdout: 'Name=Default\n\n' });
+      }, function(wmic, finish) {
+        wmic.run('os get /all', function(err, stdout) {
+          try {
+            should.not.exist(err);
+            stdout.should.equal('Name=Default\n\n');
+            calls.length.should.equal(1);
+            calls[0].command.should.equal('pwsh');
+            var script = Buffer.from(calls[0].args[5], 'base64').toString('utf16le');
+            var specBase64 = script.match(/FromBase64String\("([^"]+)"\)/)[1];
+            var spec = JSON.parse(Buffer.from(specBase64, 'base64').toString('utf8'));
+            spec.type.should.equal('list');
+            spec.section.should.equal('Win32_OperatingSystem');
+            finish();
+          } catch (assertErr) {
+            finish(assertErr);
+          }
+        });
+      }, done);
+    });
+
+    it('accepts full legacy list and value syntax variants', function(done) {
+      var acceptable = [
+        'os list full',
+        'os list brief',
+        'os where "Name=\'x\'" get Name',
+        'os get Name /value'
+      ];
+
+      var index = 0;
+      function next() {
+        if (index >= acceptable.length) return done();
+        var command = acceptable[index++];
+        withWmic(function(commandName, args) {
+          var script = Buffer.from(args[5], 'base64').toString('utf16le');
+          var specBase64 = script.match(/FromBase64String\("([^"]+)"\)/)[1];
+          var spec = JSON.parse(Buffer.from(specBase64, 'base64').toString('utf8'));
+          spec.section.should.equal('Win32_OperatingSystem');
+          return makeChild({ stdout: 'Name=Default\n\n' });
+        }, function(wmic, finish) {
+          wmic.run(command, function(err) {
+            try {
+              should.not.exist(err);
+              finish();
+            } catch (assertErr) {
+              finish(assertErr);
+            }
+          });
+        }, function(err) {
+          if (err) return done(err);
+          next();
+        });
+      }
+      next();
+    });
+
+    it('resolves legacy alias names to their Win32 CIM classes', function(done) {
+      var calls = [];
+      withWmic(function(command, args) {
+        calls.push({ command: command, args: args });
+        return makeChild({ stdout: 'Name=Default\n\n' });
+      }, function(wmic, finish) {
+        wmic.get_value('bios', 'Name', null, function(err) {
+          try {
+            should.not.exist(err);
+            calls.length.should.equal(1);
+            var script = Buffer.from(calls[0].args[5], 'base64').toString('utf16le');
+            var specBase64 = script.match(/FromBase64String\("([^"]+)"\)/)[1];
+            var spec = JSON.parse(Buffer.from(specBase64, 'base64').toString('utf8'));
+            spec.section.should.equal('Win32_BIOS');
+            finish();
+          } catch (assertErr) {
+            finish(assertErr);
+          }
+        });
+      }, done);
+    });
+
     it('returns a missing-shell error when no powershell is available', function(done) {
       withWmic(function() {
         var err = new Error('not found');
