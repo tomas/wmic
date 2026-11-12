@@ -5,9 +5,9 @@
 */
 var MAX_WORKER_COUNT = 100;
 var execFile = require('child_process').execFile,
-    exec  = require('child_process').exec,
     async = require('async'),
-    fs    = require('fs'),
+    fs = require('fs'),
+    path = require('path'),
     iconv = require('iconv-lite');
 
 /**
@@ -68,8 +68,14 @@ function parse_list(data){
     });
 
     lines.forEach(function(line) {
-      var kv = line.replace(/^,/, '').split("=");
-      obj[kv[0]] = kv[1];
+      // WMIC-style list output is key=value. Values may also include '=' so split once.
+      var cleaned = line.replace(/^,/, '');
+      var sep = cleaned.indexOf('=');
+      if (sep === -1) return;
+
+      var key = cleaned.slice(0, sep);
+      var value = cleaned.slice(sep + 1);
+      obj[key] = value;
     })
 
     if (Object.keys(obj).length > 0)
@@ -84,6 +90,8 @@ function parse_values(out){
   var arr  = [],
       data = buildDataArray(out),
       keys = data[0];
+
+  if (!keys) return arr;
 
   data.forEach(function(k, i){
     if(k != keys){
@@ -106,6 +114,17 @@ function buildDataArray(rawInput){
       keys = [],
       linePattern = /(\S*?\s\s+)/g,
       match;
+
+  if (!lines.length || !lines[0]) return [];
+
+  if (lines[0].indexOf('\t') !== -1) {
+    lines.forEach(function(line) {
+      data.push(line.split('\t').map(function(value) {
+        return value.trim();
+      }));
+    });
+    return data;
+  }
 
   while ((match = linePattern.exec(lines[0])) !== null) {
     if (match.index === linePattern.lastIndex) {
@@ -151,93 +170,239 @@ var run = exports.run = function run(cmd, cb) {
   queue.push(cmd, cb);
 };
 
-// The encoding is cached in this variable, so the CHCP command is executed only once.
-var consoleEncoding;
+var SHELLS = ['pwsh', 'powershell'];
+var ALIASES = {
+  account: 'Win32_UserAccount',
+  baseboard: 'Win32_BaseBoard',
+  battery: 'Win32_Battery',
+  bios: 'Win32_BIOS',
+  bootconfig: 'Win32_BootConfiguration',
+  cdrom: 'Win32_CDROMDrive',
+  computer: 'Win32_ComputerSystem',
+  computersystem: 'Win32_ComputerSystem',
+  cpu: 'Win32_Processor',
+  desktop: 'Win32_Desktop',
+  disk: 'Win32_LogicalDisk',
+  diskdrive: 'Win32_DiskDrive',
+  filesystem: 'Win32_FileSystem',
+  logicaldisk: 'Win32_LogicalDisk',
+  memorychip: 'Win32_PhysicalMemory',
+  motherboard: 'Win32_BaseBoard',
+  nic: 'Win32_NetworkAdapter',
+  nicconfig: 'Win32_NetworkAdapterConfiguration',
+  networkadapter: 'Win32_NetworkAdapter',
+  networkadapterconfiguration: 'Win32_NetworkAdapterConfiguration',
+  os: 'Win32_OperatingSystem',
+  partition: 'Win32_DiskPartition',
+  pagefile: 'Win32_PageFile',
+  physicalmemory: 'Win32_PhysicalMemory',
+  printer: 'Win32_Printer',
+  process: 'Win32_Process',
+  processor: 'Win32_Processor',
+  product: 'Win32_Product',
+  service: 'Win32_Service',
+  share: 'Win32_Share',
+  sounddevice: 'Win32_SoundDevice',
+  startup: 'Win32_StartupCommand',
+  useraccount: 'Win32_UserAccount',
+  videcontroller: 'Win32_VideoController',
+  videocontroller: 'Win32_VideoController',
+  volume: 'Win32_Volume'
+};
+
+function normalizeLegacyClassName(section) {
+  var name = String(section || '').trim();
+  if (!name) return '';
+
+  name = name.replace(/^.+[:\\/]/, '');
+  name = name.replace(/^win32_/i, '');
+  name = name.replace(/[^a-z0-9]+/gi, ' ');
+  name = name.replace(/\s+/g, ' ').trim();
+
+  if (!name) return '';
+  return 'Win32_' + name.split(' ').map(function(part) {
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }).join('_');
+}
+
+// Translate common WMIC aliases to CIM class names while still accepting explicit Win32_* names.
+function resolveClassName(section) {
+  if (!section) return '';
+  if (/^win32_/i.test(section)) return section;
+
+  var normalized = String(section).trim().toLowerCase();
+  if (ALIASES[normalized]) return ALIASES[normalized];
+
+  return normalizeLegacyClassName(section);
+}
+
+function parseCommandSpec(cmd) {
+  var args = splitter(cmd);
+  var section = args.shift();
+  var condition = null;
+
+  if (args[0] && args[0].toLowerCase() === 'where') {
+    args.shift();
+    condition = args.shift() || null;
+    if (condition && /[\r\n]/.test(condition)) {
+      throw new Error('Invalid condition');
+    }
+  }
+
+  var action = (args.shift() || '').toLowerCase();
+  if (!section || !action) throw new Error('Invalid command');
+
+  if (action === 'list') {
+    return {
+      type: 'list',
+      section: resolveClassName(section),
+      condition: condition
+    };
+  }
+
+  if (action !== 'get') {
+    if (/^(?:all|full|brief|\*)$/.test(action)) {
+      return {
+        type: 'list',
+        section: resolveClassName(section),
+        condition: condition
+      };
+    }
+    throw new Error('Unsupported command');
+  }
+
+  var valueMode = false;
+  var rawFields = args.filter(function(arg) {
+    var isValueSwitch = arg.toLowerCase() === '/value';
+    valueMode = valueMode || isValueSwitch;
+    return !isValueSwitch;
+  }).join(' ').trim();
+
+  if (!rawFields || /^\/?(?:all|full|brief|\*)$/i.test(rawFields)) {
+    return {
+      type: 'list',
+      section: resolveClassName(section),
+      condition: condition
+    };
+  }
+
+  var fields = rawFields.split(/[\s,]+/).map(function(field) {
+    return field.trim();
+  }).filter(Boolean);
+
+  if (!fields.length) {
+    return {
+      type: 'list',
+      section: resolveClassName(section),
+      condition: condition
+    };
+  }
+
+  return {
+    type: valueMode ? 'value' : 'table',
+    section: resolveClassName(section),
+    condition: condition,
+    fields: fields
+  };
+}
+
+function createNoShellError() {
+  var err = new Error('Unable to find PowerShell command in path.');
+  err.code = 'ENOENT';
+  return err;
+}
+
+var POWER_SHELL_SCRIPT_PATH = path.join(__dirname, 'powershell', 'wmic-query.ps1');
+var POWER_SHELL_SPEC_PLACEHOLDER = '__WMIC_SPEC_BASE64__';
+var powerShellScriptTemplate;
+
+// Read and cache script template once per process for lower per-call overhead.
+function getPowerShellScriptTemplate() {
+  if (!powerShellScriptTemplate) {
+    powerShellScriptTemplate = fs.readFileSync(POWER_SHELL_SCRIPT_PATH, 'utf8');
+  }
+  return powerShellScriptTemplate;
+}
+
+function buildPowerShellScript(spec) {
+  // Pass spec as encoded JSON to avoid fragile shell quoting and injection via interpolation.
+  var encodedSpec = Buffer.from(JSON.stringify(spec), 'utf8').toString('base64');
+  return getPowerShellScriptTemplate().split(POWER_SHELL_SPEC_PLACEHOLDER).join(encodedSpec);
+}
+
+function runPowerShell(spec, opts, cb) {
+  var pid;
+  // Build/encode once and reuse across fallback attempts (pwsh -> powershell).
+  var script = buildPowerShellScript(spec);
+  var encodedCommand = Buffer.from(script, 'utf16le').toString('base64');
+
+  function attempt(index) {
+    if (index >= SHELLS.length) {
+      cb(createNoShellError(), '', pid);
+      return;
+    }
+
+    var command = SHELLS[index];
+    var ps = execFile(command, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodedCommand], opts);
+    var stdout = [];
+    var stderr = [];
+    var done = false;
+
+    pid = ps.pid;
+
+    ps.on('error', function(err) {
+      if (done) return;
+      if (err.code === 'ENOENT') {
+        done = true;
+        attempt(index + 1);
+        return;
+      }
+
+      done = true;
+      cb(err, '', pid);
+    });
+
+    ps.stdout.on('data', function(d) { stdout.push(d); });
+    ps.stderr.on('data', function(d) { stderr.push(d); });
+
+    // Use "close" so all stdio streams are fully flushed before we parse output.
+    ps.on('close', function(code) {
+      if (done) return;
+      done = true;
+      var stdoutStr = stringifyBufferArray(stdout);
+      var stderrStr = stringifyBufferArray(stderr);
+      if (code !== 0) {
+        cb(new Error(stderrStr || ('PowerShell command failed with exit code ' + code + '.')), stdoutStr, pid);
+        return;
+      }
+      cb(null, stdoutStr, pid);
+    });
+
+    ps.stdin.end();
+  }
+
+  attempt(0);
+}
 
 var queue = async.queue(function(cmd, cb) {
-
   var opts = { env: process.env, cwd: process.env.TEMP };
-  if (opts.env.PATH.indexOf('system32') === -1) {
-    opts.env.PATH += ';' + process.env.WINDIR + "\\system32";
-    opts.env.PATH += ';' + process.env.WINDIR + "\\system32\\wbem";
+  var spec;
+
+  try {
+    spec = parseCommandSpec(cmd);
+  } catch (err) {
+    cb(err, '');
+    return;
   }
 
-  var pid;
-
-  async.parallel([
-      function(cb) {
-        if (consoleEncoding) {
-          cb(null, consoleEncoding);
-        } else {
-          exec('chcp', function(err, stdout) {
-            if (err) {
-              cb(err);
-              return;
-            }
-            var codePage = get_encoding(stdout);
-            consoleEncoding = codePage && codePage !== '65001' ? 'cp' + codePage : 'utf8';
-            cb(null, consoleEncoding);
-          });
-        }
-      },
-      function(cb) {
-        var wm = execFile('wmic', splitter(cmd), opts),
-          stdout = [],
-          stderr = [];
-
-        pid = wm.pid;
-
-        wm.on('error', function(e) {
-          if (e.code == 'ENOENT')
-            e.message = 'Unable to find wmic command in path.';
-
-          cb(e);
-        })
-
-        wm.stdout.on('data', function(d) {
-          // console.log('Got out: ' + d.toString())
-          stdout.push(d);
-        });
-
-        wm.stderr.on('data', function(e) {
-          // console.log('Got error: ' + e.toString())
-          stderr.push(e);
-        });
-
-        wm.on('exit', function(code) {
-          // remove weird temp file generated by wmic
-          fs.unlink('TempWmicBatchFile.bat', function() { /* noop */ });
-
-          setImmediate(function() {
-            cb(null, [stdout, stderr]);
-          })
-        });
-
-        wm.stdin.end();
-      }
-    ],
-    function(err, results) {
-      if (!err) {
-        var encoding = results[0];
-        var stdoutStr = stringifyBufferArray(results[1][0], encoding);
-        var stderrStr = stringifyBufferArray(results[1][1], encoding);
-        if (stderrStr) {
-          err = new Error(stderrStr);
-        }
-        cb(err, stdoutStr, pid);
-      } else {
-        cb(err, '', pid);
-      }
-    }
-  );
-
-  function stringifyBufferArray(array, encoding) {
-    return array.map(function(buffer) {
-      return iconv.decode(buffer, encoding);
-    }).join(',').replace(/^,/, '').replace(/,\s+$/, '').trim();
-  }
-
+  runPowerShell(spec, opts, cb);
 }, MAX_WORKER_COUNT);
+
+function stringifyBufferArray(array) {
+  return array.map(function(buffer) {
+    return iconv.decode(buffer, 'utf8');
+  }).join('');
+}
 
 exports.get_value = function(section, value, condition, cb){
   var cond = condition ? ' where "' + condition + '" ' : '';
